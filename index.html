@@ -1,0 +1,225 @@
+<!-- 
+  Copyright © [2023] [Dustin_Chen]. All rights reserved.
+  Author: Dustin_Chen
+  Email:  Dustin_Chen@compal.com or chuhpsdustin@gmail.com
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parse cu_stats_XXX.txt Throughput draw upload</title>
+    <style>
+        body {
+            line-height: 1.2;
+            font-size: 14px;
+            font-family: Roboto, sans-serif;
+            white-space: nowrap; /* Prevent automatic line breaks */
+            overflow-x: auto; /* Enable horizontal scrollbar */
+        }
+
+        .gnb-stats {
+            color: black;
+            font-size: 12px;
+        }
+
+        .udp-dl-tx {
+            color: blue;
+            font-size: 12px;
+        }
+
+        .udp-ul-tx {
+            color: red;
+            font-size: 12px;
+        }
+
+        #chartContainer {
+            width: 100%;
+            height: 400px;
+            margin-bottom: 40px;
+        }
+
+        canvas {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let chart1 = null;  // Store the UDP-UL-Tx chart instance
+        let chart2 = null;  // Store the UDP-DL-Tx chart instance
+
+        // Function to handle the file upload
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    const fileContent = e.target.result;
+                    parseContent(fileContent);
+                };
+
+                reader.onerror = function(e) {
+                    alert("Failed to read file!");
+                };
+
+                reader.readAsText(file);  // Read the file as text
+            }
+        }
+
+        function parseContent(fileContent) {
+            var lines = fileContent.split("\n");
+            var timestamps = [];
+            var udpUlTxValues = [];
+            var udpDlTxValues = [];
+
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i];
+
+                if (line.includes("GNB MGR STATISTICS")) {
+                    var timestamp = line.match(/\[(.*?)\]/)[1];  // Extract the timestamp
+                    timestamps.push(timestamp);
+                } else if (line.includes("UDP-UL-Tx")) {
+                    var udpUlTxValue = line.match(/\(.*?(\d+(\.\d+)?)\s*Mbps\)/); // Extract the Mbps value
+                    if (udpUlTxValue) {
+                        udpUlTxValues.push(parseFloat(udpUlTxValue[1]));
+                    }
+                } else if (line.includes("UDP-DL-Tx")) {
+                    var udpDlTxValue = line.match(/\(.*?(\d+(\.\d+)?)\s*Mbps\)/); // Extract the Mbps value
+                    if (udpDlTxValue) {
+                        udpDlTxValues.push(parseFloat(udpDlTxValue[1]));
+                    }
+                }
+            }
+
+            // Check if we have enough data to plot the graph
+            if (timestamps.length > 0 && udpUlTxValues.length > 0 && udpDlTxValues.length > 0) {
+                clearCharts();  // Clear the old charts before drawing new ones
+                drawChart(timestamps, udpUlTxValues, 'chart1', 'UDP-UL-Tx Throughput (Mbps)', 'red');
+                drawChart(timestamps, udpDlTxValues, 'chart2', 'UDP-DL-Tx Throughput (Mbps)', 'blue');
+            } else {
+                alert("Insufficient data to generate graph.");
+            }
+        }
+
+        function drawChart(timestamps, dataValues, chartId, label, borderColor) {
+            var ctx = document.getElementById(chartId).getContext('2d');
+
+            // Destroy the previous chart if it exists
+            if (chartId === 'chart1' && chart1) {
+                chart1.destroy();
+            } else if (chartId === 'chart2' && chart2) {
+                chart2.destroy();
+            }
+
+            // Create new chart
+            if (chartId === 'chart1') {
+                chart1 = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: timestamps, // GNB MGR STATISTICS (timestamps)
+                        datasets: [{
+                            label: label,
+                            data: dataValues, // UDP values (UL or DL)
+                            borderColor: borderColor,
+                            backgroundColor: borderColor === 'red' ? 'rgba(255, 99, 132, 0.2)' : 'rgba(54, 162, 235, 0.2)',
+                            fill: false,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Timestamp (GNB MGR STATISTICS)'
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: label
+                                },
+                                beginAtZero: false
+                            }
+                        }
+                    }
+                });
+            } else if (chartId === 'chart2') {
+                chart2 = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: timestamps, // GNB MGR STATISTICS (timestamps)
+                        datasets: [{
+                            label: label,
+                            data: dataValues, // UDP values (UL or DL)
+                            borderColor: borderColor,
+                            backgroundColor: borderColor === 'red' ? 'rgba(255, 99, 132, 0.2)' : 'rgba(54, 162, 235, 0.2)',
+                            fill: false,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Timestamp (GNB MGR STATISTICS)'
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: label
+                                },
+                                beginAtZero: false
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function clearCharts() {
+            // Destroy the charts if they exist
+            if (chart1) {
+                chart1.destroy();
+            }
+            if (chart2) {
+                chart2.destroy();
+            }
+
+            // Optionally, reset the chart container
+            var chartContainer = document.getElementById("chartContainer");
+            chartContainer.innerHTML = '';  // Clear existing charts
+            chartContainer.innerHTML = '<canvas id="chart1"></canvas><canvas id="chart2"></canvas>';
+        }
+    </script>
+</head>
+
+<body>
+    <h2>Parse cu_stats_XXX.txt Throughput draw upload</h2>
+
+    <p style="margin: 0;">Author: Dustin_Chen, email: <a href="mailto:Dustin_Chen@compal.com"
+            style="line-height: 1;">Dustin_Chen@compal.com</a> or <a href="mailto:chuhpsdustin@gmail.com"
+            style="line-height: 1;">chuhpsdustin@gmail.com</a></p>
+
+    <div>
+        <br>
+        <label for="fileInput">● Please upload the "cu_stats_XXX.txt" file to parse:</label><br>
+        <input type="file" id="fileInput" accept=".txt" onchange="handleFileUpload(event)"><br>
+    </div>
+
+    <h4>Output Charts:</h4>
+    <div id="chartContainer">
+        <canvas id="chart1"></canvas>
+        <canvas id="chart2"></canvas>
+    </div>
+</body>
+
+</html>
