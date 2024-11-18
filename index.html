@@ -75,13 +75,24 @@
             var timestamps = [];
             var udpUlTxValues = [];
             var udpDlTxValues = [];
+            var seenTimestamps = new Set(); // Set to track seen timestamps
 
             for (var i = 0; i < lines.length; i++) {
                 var line = lines[i];
 
                 if (line.includes("GNB MGR STATISTICS")) {
-                    var timestamp = line.match(/\[(.*?)\]/)[1];  // Extract the timestamp
-                    timestamps.push(timestamp);
+                    var timestampMatch = line.match(/\[(.*?)\]/); // Extract the timestamp
+                    if (timestampMatch) {
+                        var timestamp = timestampMatch[1];
+
+                        if (seenTimestamps.has(timestamp)) {
+                            // Skip processing if the timestamp is already seen
+                            continue;
+                        }
+
+                        timestamps.push(timestamp);
+                        seenTimestamps.add(timestamp);
+                    }
                 } else if (line.includes("UDP-UL-Tx")) {
                     var udpUlTxValue = line.match(/\(.*?(\d+(\.\d+)?)\s*Mbps\)/); // Extract the Mbps value
                     if (udpUlTxValue) {
