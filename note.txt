@@ -1,3 +1,5 @@
+修改底下html，支持多個文件上傳，多個文件檔由檔名小到大處理，合併畫圖
+
 <!-- 
   Copyright © [2023] [Dustin_Chen]. All rights reserved.
   Author: Dustin_Chen
@@ -51,53 +53,31 @@
         let chart1 = null;  // Store the UDP-UL-Tx chart instance
         let chart2 = null;  // Store the UDP-DL-Tx chart instance
 
-        // Function to handle multiple file uploads
+        // Function to handle the file upload
         function handleFileUpload(event) {
-            const files = event.target.files;
-            if (files.length > 0) {
-                const fileArray = Array.from(files);
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
 
-                // Sort files by name (ascending order)
-                fileArray.sort((a, b) => a.name.localeCompare(b.name));
+                reader.onload = function(e) {
+                    const fileContent = e.target.result;
+                    parseContent(fileContent);
+                };
 
-                // Process each file one by one
-                Promise.all(fileArray.map(file => readFile(file)))
-                    .then(fileContents => {
-                        const combinedData = fileContents.reduce((acc, content) => {
-                            return parseContent(content, acc);
-                        }, { timestamps: [], udpUlTxValues: [], udpDlTxValues: [] });
+                reader.onerror = function(e) {
+                    alert("Failed to read file!");
+                };
 
-                        // Check if we have enough data to plot the graph
-                        if (combinedData.timestamps.length > 0 && combinedData.udpUlTxValues.length > 0 && combinedData.udpDlTxValues.length > 0) {
-                            clearCharts();  // Clear the old charts before drawing new ones
-                            drawChart(combinedData.timestamps, combinedData.udpUlTxValues, 'chart1', 'UDP-UL-Tx Throughput (Mbps)', 'red');
-                            drawChart(combinedData.timestamps, combinedData.udpDlTxValues, 'chart2', 'UDP-DL-Tx Throughput (Mbps)', 'blue');
-                        } else {
-                            alert("Insufficient data to generate graph.");
-                        }
-                    })
-                    .catch(error => alert("Error reading files: " + error));
+                reader.readAsText(file);  // Read the file as text
             }
         }
 
-        // Read a single file as text
-        function readFile(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    resolve(e.target.result);  // Return file content on successful load
-                };
-                reader.onerror = function() {
-                    reject("Failed to read file: " + file.name);
-                };
-                reader.readAsText(file);  // Read the file as text
-            });
-        }
-
-        // Parse the file content and merge with existing data
-        function parseContent(fileContent, acc) {
+        function parseContent(fileContent) {
             var lines = fileContent.split("\n");
-            var seenTimestamps = new Set(acc.timestamps); // Preserve already seen timestamps
+            var timestamps = [];
+            var udpUlTxValues = [];
+            var udpDlTxValues = [];
+            var seenTimestamps = new Set(); // Set to track seen timestamps
 
             for (var i = 0; i < lines.length; i++) {
                 var line = lines[i];
@@ -107,25 +87,35 @@
                     if (timestampMatch) {
                         var timestamp = timestampMatch[1];
 
-                        if (!seenTimestamps.has(timestamp)) {
-                            acc.timestamps.push(timestamp);
-                            seenTimestamps.add(timestamp);
+                        if (seenTimestamps.has(timestamp)) {
+                            // Skip processing if the timestamp is already seen
+                            continue;
                         }
+
+                        timestamps.push(timestamp);
+                        seenTimestamps.add(timestamp);
                     }
                 } else if (line.includes("UDP-UL-Tx")) {
                     var udpUlTxValue = line.match(/\(.*?(\d+(\.\d+)?)\s*Mbps\)/); // Extract the Mbps value
                     if (udpUlTxValue) {
-                        acc.udpUlTxValues.push(parseFloat(udpUlTxValue[1]));
+                        udpUlTxValues.push(parseFloat(udpUlTxValue[1]));
                     }
                 } else if (line.includes("UDP-DL-Tx")) {
                     var udpDlTxValue = line.match(/\(.*?(\d+(\.\d+)?)\s*Mbps\)/); // Extract the Mbps value
                     if (udpDlTxValue) {
-                        acc.udpDlTxValues.push(parseFloat(udpDlTxValue[1]));
+                        udpDlTxValues.push(parseFloat(udpDlTxValue[1]));
                     }
                 }
             }
 
-            return acc;
+            // Check if we have enough data to plot the graph
+            if (timestamps.length > 0 && udpUlTxValues.length > 0 && udpDlTxValues.length > 0) {
+                clearCharts();  // Clear the old charts before drawing new ones
+                drawChart(timestamps, udpUlTxValues, 'chart1', 'UDP-UL-Tx Throughput (Mbps)', 'red');
+                drawChart(timestamps, udpDlTxValues, 'chart2', 'UDP-DL-Tx Throughput (Mbps)', 'blue');
+            } else {
+                alert("Insufficient data to generate graph.");
+            }
         }
 
         function drawChart(timestamps, dataValues, chartId, label, borderColor) {
@@ -234,8 +224,8 @@
 
     <div>
         <br>
-        <label for="fileInput">● Please upload the "cu_stats_XXX.txt" file(s) to parse:</label><br>
-        <input type="file" id="fileInput" accept=".txt" multiple onchange="handleFileUpload(event)"><br>
+        <label for="fileInput">● Please upload the "cu_stats_XXX.txt" file to parse:</label><br>
+        <input type="file" id="fileInput" accept=".txt" onchange="handleFileUpload(event)"><br>
     </div>
 
     <h4>Output Charts:</h4>
